@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rasa — Deteksi Emosi dari Tulisanmu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --bg: #F2F0EB;
+    --bg-card: #FFFFFF;
+    --bg-sunken: #EAE7E0;
+    --text: #221F2A;
+    --text-muted: #635F6E;
+    --border: #DEDAD1;
+    --accent: #D1527A;
+    --accent-ink: #FFFFFF;
+
+    --c-senang: #E2A33B;
+    --c-sedih: #3E6FA8;
+    --c-marah: #C1432D;
+    --c-takut: #6E5195;
+    --c-cinta: #D1527A;
+    --c-terkejut: #2E8B82;
+    --c-jijik: #6F7A3E;
+    --c-netral: #8B8793;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15141C;
+      --bg-card: #1D1C26;
+      --bg-sunken: #27262F;
+      --text: #EEEBE3;
+      --text-muted: #A6A2AE;
+      --border: #333141;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15141C;
+    --bg-card: #1D1C26;
+    --bg-sunken: #27262F;
+    --text: #EEEBE3;
+    --text-muted: #A6A2AE;
+    --border: #333141;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    min-height: 100%;
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 48px 24px 64px;
+  }
+
+  header h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: clamp(2rem, 6vw, 2.6rem);
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+    max-width: 14ch;
+  }
+  header p {
+    color: var(--text-muted);
+    font-size: 1.02rem;
+    max-width: 46ch;
+    margin: 0 0 32px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    padding: 0;
+  }
+  textarea::placeholder { color: var(--text-muted); opacity: 0.75; }
+
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .count { font-size: 0.85rem; color: var(--text-muted); }
+
+  button.primary {
+    appearance: none;
+    border: none;
+    background: var(--text);
+    color: var(--bg);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 11px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  button.primary:hover { opacity: 0.85; }
+  button.primary:active { transform: scale(0.97); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .chip {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--bg-sunken);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 7px 13px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .chip:hover { color: var(--text); border-color: var(--text-muted); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Result */
+  #result { margin-top: 28px; display: none; }
+  #result.show { display: block; animation: rise 0.45s ease; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .headline-emotion {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .headline-emotion .emoji { font-size: 2.4rem; line-height: 1; }
+  .headline-emotion .name {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+  }
+  .headline-emotion .pct {
+    color: var(--text-muted);
+    font-size: 1rem;
+  }
+  .interpret {
+    color: var(--text-muted);
+    margin: 4px 0 24px;
+    max-width: 50ch;
+  }
+
+  .bars { display: flex; flex-direction: column; gap: 12px; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 42px;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.9rem;
+  }
+  .bar-row .label { color: var(--text-muted); }
+  .bar-row .pct-num { text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .bar-track {
+    background: var(--bg-sunken);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(.2,.7,.3,1);
+  }
+
+  .disclaimer {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    max-width: 54ch;
+  }
+
+  /* History */
+  #history-section { margin-top: 40px; }
+  #history-section h2 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+  }
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.86rem;
+  }
+  .history-item .h-emotion { display: flex; align-items: center; gap: 8px; }
+  .history-item .h-emoji { font-size: 1.1rem; }
+  .history-item .h-text { color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-item .h-time { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+  .clear-history {
+    appearance: none;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 420px) {
+    .bar-row { grid-template-columns: 72px 1fr 36px; font-size: 0.82rem; }
+    .history-item .h-text { max-width: 140px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Apa yang sedang kamu rasakan?</h1>
+    <p>Tulis bebas tentang harimu, perasaanmu, atau apa pun yang ada di kepala. Rasa akan membaca pola katanya dan menunjukkan emosi yang paling menonjol.</p>
+  </header>
+
+  <div class="card">
+    <textarea id="input" placeholder="Misalnya: Aku capek banget hari ini, kerjaan numpuk dan rasanya mau nangis aja..." maxlength="1000"></textarea>
+    <div class="card-foot">
+      <span class="count" id="charCount">0 / 1000</span>
+      <button class="primary" id="analyzeBtn" disabled>Deteksi emosi</button>
+    </div>
+  </div>
+
+  <div class="examples" id="examples"></div>
+
+  <div id="result">
+    <div class="headline-emotion">
+      <span class="emoji" id="rEmoji">🙂</span>
+      <span class="name" id="rName">Netral</span>
+      <span class="pct" id="rPct"></span>
+    </div>
+    <p class="interpret" id="rInterpret"></p>
+    <div class="bars" id="rBars"></div>
+    <p class="disclaimer">Rasa membaca pola kata, bukan alat diagnosis psikologis. Hasilnya hanya gambaran kasar dari teks yang kamu tulis — bukan pengganti penilaian profesional. Jika kamu sedang berat secara emosional, ada baiknya bicara dengan orang yang kamu percaya atau tenaga profesional kesehatan mental.</p>
+  </div>
+
+  <div id="history-section" style="display:none;">
+    <h2>Riwayat deteksi</h2>
+    <div class="history-list" id="historyList"></div>
+    <button class="clear-history" id="clearHistory">Hapus riwayat</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const EMOTIONS = {
+    senang:   { label: "Senang",   emoji: "😄", color: "var(--c-senang)",
+      interpret: "Energi positif terasa kuat di tulisanmu — nikmati momen ini.",
+      words: ["senang","bahagia","gembira","ceria","girang","bangga","puas","lega","semangat","excited","happy","joy","seru","asik","asyik","mantap","tertawa","ketawa","senyum","bersyukur","syukur","enjoy","fun","awesome","great","senangnya","seneng","serunya","asyiknya"] },
+    sedih:    { label: "Sedih",    emoji: "😢", color: "var(--c-sedih)",
+      interpret: "Ada rasa berat yang sedang kamu bawa. Tidak apa-apa untuk merasa begini.",
+      words: ["sedih","kecewa","nangis","menangis","galau","terpuruk","hancur","kehilangan","rindu","kangen","sepi","kesepian","murung","suram","putus asa","sad","cry","lonely","hopeless","menyesal","sakit hati","patah hati","capek","lelah","down","nelangsa"] },
+    marah:    { label: "Marah",    emoji: "😠", color: "var(--c-marah)",
+      interpret: "Ada ketegangan yang ingin diluapkan. Coba tarik napas sebelum merespons.",
+      words: ["marah","kesal","kesel","jengkel","benci","geram","murka","dongkol","muak","sebal","sebel","angry","mad","hate","furious","bete","sialan","brengsek","kampret","nyebelin","gregetan"] },
+    takut:    { label: "Takut",    emoji: "😨", color: "var(--c-takut)",
+      interpret: "Kekhawatiran sedang mendominasi pikiranmu saat ini.",
+      words: ["takut","cemas","khawatir","gugup","panik","ngeri","was-was","resah","gelisah","anxious","scared","afraid","nervous","worried","parno","trauma","deg-degan","mengerikan"] },
+    cinta:    { label: "Cinta",    emoji: "🥰", color: "var(--c-cinta)",
+      interpret: "Ada kehangatan dan kedekatan yang terasa kuat di sini.",
+      words: ["cinta","sayang","kasih","mencintai","menyayangi","love","kagum","terpesona","jatuh cinta","sayangku","cintaku","rindu banget","kangen banget"] },
+    terkejut: { label: "Terkejut", emoji: "😲", color: "var(--c-terkejut)",
+      interpret: "Sesuatu yang tak terduga baru saja mengguncang perasaanmu.",
+      words: ["kaget","terkejut","kejutan","astaga","shock","shocked","surprised","tak percaya","nggak nyangka","gak nyangka","ga nyangka","mengejutkan","gila","ngeri banget"] },
+    jijik:    { label: "Jijik",    emoji: "🤢", color: "var(--c-jijik)",
+      interpret: "Ada penolakan kuat terhadap sesuatu dalam tulisanmu.",
+      words: ["jijik","muak","eneg","geli","disgusting","gross","enek","mual","menjijikkan"] }
+  };
+
+  const NETRAL = { label: "Netral", emoji: "🙂", color: "var(--c-netral)",
+    interpret: "Belum ada emosi yang menonjol. Coba ceritakan lebih detail apa yang kamu rasakan." };
+
+  const EXAMPLES = [
+    "Aku capek banget, kerjaan numpuk dan rasanya mau nangis",
+    "Seneng banget hari ini, akhirnya lulus ujian!",
+    "Kesel deh, janjian terus dibatalin mendadak",
+    "Deg-degan banget nunggu hasil wawancara besok"
+  ];
+
+  const input = document.getElementById("input");
+  const charCount = document.getElementById("charCount");
+  const analyzeBtn = document.getElementById("analyzeBtn");
+  const examplesEl = document.getElementById("examples");
+  const resultEl = document.getElementById("result");
+  const rEmoji = document.getElementById("rEmoji");
+  const rName = document.getElementById("rName");
+  const rPct = document.getElementById("rPct");
+  const rInterpret = document.getElementById("rInterpret");
+  const rBars = document.getElementById("rBars");
+  const historySection = document.getElementById("history-section");
+  const historyList = document.getElementById("historyList");
+  const clearHistoryBtn = document.getElementById("clearHistory");
+
+  EXAMPLES.forEach(ex => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.type = "button";
+    b.textContent = ex.length > 38 ? ex.slice(0, 38) + "…" : ex;
+    b.addEventListener("click", () => {
+      input.value = ex;
+      updateCount();
+      analyze();
+    });
+    examplesEl.appendChild(b);
+  });
+
+  function updateCount() {
+    const len = input.value.length;
+    charCount.textContent = len + " / 1000";
+    analyzeBtn.disabled = input.value.trim().length < 3;
+  }
+  input.addEventListener("input", updateCount);
+  input.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !analyzeBtn.disabled) analyze();
+  });
+
+  function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  function analyzeText(text) {
+    const normalized = " " + text.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim() + " ";
+    const scores = {};
+    let total = 0;
+    for (const key in EMOTIONS) {
+      let count = 0;
+      EMOTIONS[key].words.forEach(w => {
+        const re = new RegExp("\\b" + escapeRegex(w) + "\\b", "g");
+        const m = normalized.match(re);
+        if (m) count += m.length;
+      });
+      scores[key] = count;
+      total += count;
+    }
+    return { scores, total };
+  }
+
+  function analyze() {
+    const text = input.value.trim();
+    if (text.length < 3) return;
+    const { scores, total } = analyzeText(text);
+
+    let dominantKey = null, dominantCount = -1;
+    Object.keys(scores).forEach(k => {
+      if (scores[k] > dominantCount) { dominantCount = scores[k]; dominantKey = k; }
+    });
+
+    const isNeutral = total === 0;
+    const dominant = isNeutral ? NETRAL : EMOTIONS[dominantKey];
+
+    rEmoji.textContent = dominant.emoji;
+    rName.textContent = dominant.label;
+    rName.style.color = isNeutral ? "var(--text)" : dominant.color;
+    rPct.textContent = isNeutral ? "" : Math.round((dominantCount / total) * 100) + "% dari kata bermuatan emosi";
+    rInterpret.textContent = dominant.interpret;
+
+    rBars.innerHTML = "";
+    const sorted = Object.keys(EMOTIONS).sort((a, b) => scores[b] - scores[a]);
+    sorted.forEach(k => {
+      const pct = total > 0 ? Math.round((scores[k] / total) * 100) : 0;
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML = `
+        <span class="label">${EMOTIONS[k].label}</span>
+        <span class="bar-track"><span class="bar-fill" style="background:${EMOTIONS[k].color}"></span></span>
+        <span class="pct-num">${pct}%</span>`;
+      rBars.appendChild(row);
+      requestAnimationFrame(() => {
+        row.querySelector(".bar-fill").style.width = pct + "%";
+      });
+    });
+
+    resultEl.classList.add("show");
+    resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    saveHistory(text, dominant, isNeutral);
+  }
+  analyzeBtn.addEventListener("click", analyze);
+
+  // History (localStorage, per-browser convenience only)
+  const HKEY = "rasa_history_v1";
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HKEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function saveHistory(text, dominant, isNeutral) {
+    try {
+      const list = loadHistory();
+      list.unshift({
+        text: text.length > 60 ? text.slice(0, 60) + "…" : text,
+        emoji: dominant.emoji,
+        label: dominant.label,
+        time: new Date().toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+      });
+      localStorage.setItem(HKEY, JSON.stringify(list.slice(0, 6)));
+    } catch (e) { /* storage unavailable, skip silently */ }
+    renderHistory();
+  }
+  function renderHistory() {
+    const list = loadHistory();
+    if (!list.length) { historySection.style.display = "none"; return; }
+    historySection.style.display = "block";
+    historyList.innerHTML = "";
+    list.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "history-item";
+      row.innerHTML = `
+        <span class="h-emotion"><span class="h-emoji">${item.emoji}</span><span class="h-text">${item.text}</span></span>
+        <span class="h-time">${item.time}</span>`;
+      historyList.appendChild(row);
+    });
+  }
+  clearHistoryBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(HKEY); } catch (e) {}
+    renderHistory();
+  });
+
+  updateCount();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
